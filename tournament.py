@@ -5,8 +5,6 @@
 
 import psycopg2
 
-db = []
-
 '''Database name = tournament   tables = players, matches
 players schema = (id serial primary key not null, name text not null)
 matches schema = (match_id serial primary key not null, winner int not null,
@@ -74,13 +72,17 @@ def playerStandings():
     """
     DB = connect()
     c = DB.cursor()
-    query = """ SELECT  id, name,
-                COUNT(CASE id WHEN winner THEN 1 ELSE NULL END) AS wins,
-                COUNT(match_id) AS matches
+    query = """ SELECT id, name,
+                    COUNT(CASE id WHEN winner THEN 1 ELSE NULL END) AS wins,
+                    COUNT(match_id) AS matches_played
                 FROM players
                 LEFT JOIN matches ON id IN (winner, loser)
                 GROUP BY id, name
                 ORDER BY wins DESC; """
+    # CASE/WHEN/THEN/END is same as IF/ELSE statement in programming languages
+    # Join matches onto players table where id matches either winner or loser column.
+    # Group by name and id
+    # then COUNT() all match_id from this join and output as matches_played
     c.execute(query)
     standings = c.fetchall()
     DB.close()
@@ -93,7 +95,12 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
- 
+    DB = connect()
+    c = DB.cursor()
+    query = "INSERT INTO matches(winner, loser) VALUES(%s, %s);"
+    c.execute(query, (int(winner), int(loser)))
+    DB.commit()
+    DB.close()
  
 def swissPairings():
     """Returns a list of pairs of players for the next round of a match.
@@ -110,5 +117,19 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-
+    standings = playerStandings()
+    draws = []
+    pairs = []
+    count = 0
+    for x in standings:
+        if (count%2 == 0):
+            pairs = []              #clear pairs list
+            pairs.append(x[0])      #append id and name of one player
+            pairs.append(x[1])
+        else:
+            pairs.append(x[0])      #append id and name of other player
+            pairs.append(x[1])
+            draws.append(pairs)     #pairs of players appended into draws
+        count = count + 1
+    return draws
 
