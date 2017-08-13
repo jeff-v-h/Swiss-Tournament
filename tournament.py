@@ -7,11 +7,11 @@ import psycopg2
 
 db = []
 
-'''Database name = tournament
-tables = 1. players 2. matches
-players schema = (id serial not null, name text not null, birthdate date)
-matches schema = (match_id int not null, player_a int not null, player_b int not null
-a_score int, b_score int, winner int, loser int)'''
+'''Database name = tournament   tables = players, matches
+players schema = (id serial primary key not null, name text not null)
+matches schema = (match_id serial primary key not null, winner int not null,
+    loser int not null, winner_score int, loser_score int)
+'''
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
@@ -22,6 +22,7 @@ def deleteMatches():
     DB = connect()
     c = DB.cursor()
     c.execute("DELETE FROM matches;")
+    c.execute("ALTER SEQUENCE matches_match_id_seq restart;") #required to restart id at 1
     DB.commit()
     DB.close()
 
@@ -30,6 +31,7 @@ def deletePlayers():
     DB = connect()
     c = DB.cursor()
     c.execute("DELETE FROM players;")
+    c.execute("ALTER SEQUENCE players_id_seq restart;") #required to restart id at 1
     DB.commit()
     DB.close()
 
@@ -70,7 +72,19 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-
+    DB = connect()
+    c = DB.cursor()
+    query = """ SELECT  id, name,
+                COUNT(CASE id WHEN winner THEN 1 ELSE NULL END) AS wins,
+                COUNT(match_id) AS matches
+                FROM players
+                LEFT JOIN matches ON id IN (winner, loser)
+                GROUP BY id, name
+                ORDER BY wins DESC; """
+    c.execute(query)
+    standings = c.fetchall()
+    DB.close()
+    return standings
 
 def reportMatch(winner, loser):
     """Records the outcome of a single match between two players.
